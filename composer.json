@@ -1,0 +1,5 @@
+{
+    "require": {
+        "wheniwork/oauth1-intuit": "^0.1.1"
+    }
+}
