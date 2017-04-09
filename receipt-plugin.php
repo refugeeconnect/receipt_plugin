@@ -34,10 +34,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
             add_action('admin_init', [$this, 'register_settings']);
             add_action('admin_init', [$this, 'setupOAuth']);
 
-            add_action( 'plugins_loaded', [$this, 'database_setup'] );
-            add_action( 'plugins_loaded', [$this, 'plugin_setup'] );
+            add_action('plugins_loaded', [$this, 'database_setup']);
+            add_action('plugins_loaded', [$this, 'plugin_setup']);
 
-            add_action( 'refugeeconnect_receipt_cron_hook', [$this, 'cron_exec'] );
+            add_action('refugeeconnect_receipt_cron_hook', [$this, 'cron_exec']);
 
             add_action('admin_init', [$this, 'download_pdf']);
 
@@ -48,34 +48,37 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             $this->wpdb = $wpdb;
         }
-        
-        public function plugin_setup(){
-            if ( ! wp_next_scheduled( 'refugeeconnect_receipt_cron_hook' ) ) {
-                wp_schedule_event( time(), 'hourly', 'refugeeconnect_receipt_cron_hook' );
+
+        public function plugin_setup()
+        {
+            if (!wp_next_scheduled('refugeeconnect_receipt_cron_hook')) {
+                wp_schedule_event(time(), 'hourly', 'refugeeconnect_receipt_cron_hook');
             }
         }
 
-        public function cron_exec() {
+        public function cron_exec()
+        {
             $this->syncSalesReceipts();
         }
 
-        public function database_setup(){
+        public function database_setup()
+        {
             global $wpdb;
 
-            $installed_ver = get_option( "refugeeconnectreceiptplugin_db_version" );
+            $installed_ver = get_option("refugeeconnectreceiptplugin_db_version");
 
             $this->receipt_table_name = $wpdb->prefix . "intuit_receipts";
             $this->customer_table_name = $wpdb->prefix . "intuit_customers";
 
 
-
-            if ( $installed_ver != $this->db_version ) {
+            if ($installed_ver != $this->db_version) {
                 require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
 
 
                 $charset_collate = $wpdb->get_charset_collate();
 
-                $sql = ["CREATE TABLE {$this->receipt_table_name} (
+                $sql = [
+                    "CREATE TABLE {$this->receipt_table_name} (
                   id mediumint(9) NOT NULL,
                   SyncToken int(9) NOT NULL,
                   CustomerID int(9) NOT NULL,
@@ -84,7 +87,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                   Object text NOT NULL,
                   PRIMARY KEY  (id)
                   ) $charset_collate;",
-                  "CREATE TABLE {$this->customer_table_name} (
+                    "CREATE TABLE {$this->customer_table_name} (
                   id mediumint(9) NOT NULL,
                   CustomerName text NOT NULL,
                   PrimaryEmailAddress text,
@@ -92,7 +95,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                   PRIMARY KEY  (id)
                   ) $charset_collate;
                   
-                  "];
+                  "
+                ];
 
                 dbDelta($sql);
 
@@ -100,7 +104,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
         }
 
-        public function setupOAuth(){
+        public function setupOAuth()
+        {
             $options = get_option('refugeeconnect_receipt_settings', []);
             $this->intuitOauthServer = new Wheniwork\OAuth1\Client\Server\Intuit(
                 [
@@ -120,7 +125,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $this->baseUrl .= "/v3/company/$realmId/";
         }
 
-        private function getAuthHeader($method, $uri){
+        private function getAuthHeader($method, $uri)
+        {
             $tokenCredentials = get_option('refugeeconnect_receipt_authed_creds', '');
             if ($tokenCredentials) {
 
@@ -137,8 +143,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         function deactivation()
         {
-            $timestamp = wp_next_scheduled( 'refugeeconnect_receipt_cron_hook' );
-            wp_unschedule_event( $timestamp, 'refugeeconnect_receipt_cron_hook' );
+            $timestamp = wp_next_scheduled('refugeeconnect_receipt_cron_hook');
+            wp_unschedule_event($timestamp, 'refugeeconnect_receipt_cron_hook');
         }
 
         public function register_settings()
@@ -218,8 +224,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 ]
             );
 
-            if ( get_option( 'intuit_app_custom_field' ) === false ) // Nothing yet saved
-                update_option( 'intuit_app_custom_field', 'ExternalReceipt' );
+            if (get_option('intuit_app_custom_field') === false) // Nothing yet saved
+            {
+                update_option('intuit_app_custom_field', 'ExternalReceipt');
+            }
         }
 
         public function settings_section_callback()
@@ -298,7 +306,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     );
 
                     update_option('refugeeconnect_receipt_authed_creds', $tokenCredentials);
-                    update_option('refugeeconnect_receipt_authed_realm', filter_var($_GET['realmId'], FILTER_SANITIZE_NUMBER_INT));
+                    update_option(
+                        'refugeeconnect_receipt_authed_realm',
+                        filter_var($_GET['realmId'], FILTER_SANITIZE_NUMBER_INT)
+                    );
 
                     ?>
                     <div class="notice notice-success is-dismissible">
@@ -310,7 +321,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     ?>
                     <div class="notice notice-error is-dismissible">
                         <p>Failed to connect to Intuit</p>
-                        <p><?= $e->getCode() ?>: <?= $e->getMessage()?></p>
+                        <p><?= $e->getCode() ?>: <?= $e->getMessage() ?></p>
                     </div>
                     <?php
 
@@ -377,7 +388,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $this->syncCustomers();
         }
 
-        function download_pdf(){
+        function download_pdf()
+        {
 
             // Generate PDF receipt
             if ($_GET['pdf_receipt'] && $_GET['page'] == 'refugee-connect-receipts') {
@@ -416,7 +428,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 
             $receipts = $this->wpdb->get_results(
-                    "
+                "
                     SELECT id, SyncToken, CustomerID, TxnDate, ExternalReceipt, Object
                     FROM {$this->receipt_table_name}
                     "
@@ -425,54 +437,56 @@ if (!class_exists('RefugeeConnect_receipts')) {
             ?>
             <h1><strong>Receipts</strong></h1>
             <table class="widefat">
-            <thead>
-            <tr>
-                <th class="row-title"><?php esc_attr_e( 'Receipt ID', 'wp_admin_style' ); ?></th>
-                <th><?php esc_attr_e( 'Date', 'wp_admin_style' ); ?></th>
-                <th><?php esc_attr_e( 'Donor', 'wp_admin_style' ); ?></th>
-                <th><?php esc_attr_e( 'Line Items', 'wp_admin_style' ); ?></th>
-                <th><?php esc_attr_e( 'Status', 'wp_admin_style' ); ?></th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody>
-
-            <?php
-
-            foreach ($receipts as $receipt) {
-                $receipt_ob = unserialize($receipt->Object);
-                ?>
-                <tr valign="top">
-                    <td scope="row"><label for="tablecell"><?php esc_attr_e(
-                                $receipt->id, 'wp_admin_style'
-                            ); ?></label></td>
-                    <td><?php esc_attr_e( $receipt_ob->TxnDate, 'wp_admin_style' ); ?></td>
-                    <td><?php esc_attr_e( $receipt_ob->CustomerRef->name, 'wp_admin_style' ); ?></td>
-                    <td><?php
-                        $lines = [];
-                        foreach ($receipt_ob->Line as $line) {
-                            if($line->Id) {
-                                $lines[] = "{$line->LineNum}: {$line->Description} <span style='float:right'>\${$line->Amount}</span>";
-                            }
-                        }
-                        echo implode("<br/>", $lines);
-                        
-                        ?></td>
-                    <td><?= $receipt->ExternalReceipt ?></td>
-                    <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id?>">Download PDF</a></td>
+                <thead>
+                <tr>
+                    <th class="row-title"><?php esc_attr_e('Receipt ID', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Date', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Donor', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Line Items', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Status', 'wp_admin_style'); ?></th>
+                    <th></th>
                 </tr>
-                <?php
-            }
+                </thead>
+                <tbody>
 
-            ?>
+                <?php
+
+                foreach ($receipts as $receipt) {
+                    $receipt_ob = unserialize($receipt->Object);
+                    ?>
+                    <tr valign="top">
+                        <td scope="row"><label for="tablecell"><?php esc_attr_e(
+                                    $receipt->id,
+                                    'wp_admin_style'
+                                ); ?></label></td>
+                        <td><?php esc_attr_e($receipt_ob->TxnDate, 'wp_admin_style'); ?></td>
+                        <td><?php esc_attr_e($receipt_ob->CustomerRef->name, 'wp_admin_style'); ?></td>
+                        <td><?php
+                            $lines = [];
+                            foreach ($receipt_ob->Line as $line) {
+                                if ($line->Id) {
+                                    $lines[] = "{$line->LineNum}: {$line->Description} <span style='float:right'>\${$line->Amount}</span>";
+                                }
+                            }
+                            echo implode("<br/>", $lines);
+
+                            ?></td>
+                        <td><?= $receipt->ExternalReceipt ?></td>
+                        <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a></td>
+                    </tr>
+                    <?php
+                }
+
+                ?>
                 </tfoot>
             </table>
             <?php
         }
 
-        private function externalReceiptStatus($receipt) {
+        private function externalReceiptStatus($receipt)
+        {
             foreach ($receipt->CustomField as $custom_field) {
-                if ($custom_field->Name == get_option( 'intuit_app_custom_field' ) ) {
+                if ($custom_field->Name == get_option('intuit_app_custom_field')) {
                     if ($custom_field->StringValue) { // Check we aren't a Null
                         return $custom_field->StringValue;
                     }
@@ -490,19 +504,22 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             // TODO pagination to ensure we get all receipts
             $count = 0;
-            foreach($response->body->QueryResponse->SalesReceipt as $receipt) {
-                $this->wpdb->replace($this->receipt_table_name, [
-                    'id' => (int)$receipt->Id,
-                    'SyncToken' => $receipt->SyncToken,
-                    'CustomerID' => $receipt->CustomerRef->value,
-                    'TxnDate' => $receipt->TxnDate,
-                    'ExternalReceipt' => $this->externalReceiptStatus($receipt),
-                    'Object' => serialize($receipt)
-                ]);
+            foreach ($response->body->QueryResponse->SalesReceipt as $receipt) {
+                $this->wpdb->replace(
+                    $this->receipt_table_name,
+                    [
+                        'id' => (int)$receipt->Id,
+                        'SyncToken' => $receipt->SyncToken,
+                        'CustomerID' => $receipt->CustomerRef->value,
+                        'TxnDate' => $receipt->TxnDate,
+                        'ExternalReceipt' => $this->externalReceiptStatus($receipt),
+                        'Object' => serialize($receipt)
+                    ]
+                );
                 $count++;
             }
 
-            if ( ! defined( 'DOING_CRON' ) ) {
+            if (!defined('DOING_CRON')) {
                 // Don't output notice if we are running under Cron
                 ?>
                 <div class="notice notice-success is-dismissible">
@@ -522,17 +539,20 @@ if (!class_exists('RefugeeConnect_receipts')) {
             // TODO pagination to ensure we get all customers
             $count = 0;
             dump($response->body->QueryResponse);
-            foreach($response->body->QueryResponse->Customer as $customer) {
-                $this->wpdb->replace($this->customer_table_name, [
-                    'id' => (int)$customer->Id,
-                    'CustomerName' => $customer->DisplayName,
-                    'PrimaryEmailAddress' => $customer->PrimaryEmailAddr->Address,
-                    'Object' => serialize($customer)
-                ]);
+            foreach ($response->body->QueryResponse->Customer as $customer) {
+                $this->wpdb->replace(
+                    $this->customer_table_name,
+                    [
+                        'id' => (int)$customer->Id,
+                        'CustomerName' => $customer->DisplayName,
+                        'PrimaryEmailAddress' => $customer->PrimaryEmailAddr->Address,
+                        'Object' => serialize($customer)
+                    ]
+                );
                 $count++;
             }
 
-            if ( ! defined( 'DOING_CRON' ) ) {
+            if (!defined('DOING_CRON')) {
                 // Don't output notice if we are running under Cron
                 ?>
                 <div class="notice notice-success is-dismissible">
