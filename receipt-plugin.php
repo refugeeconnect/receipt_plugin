@@ -11,6 +11,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 */
 
 require_once(dirname(__FILE__) . '/vendor/autoload.php');
+require_once(dirname(__FILE__) . '/receipt-template.php');
 
 if (!class_exists('RefugeeConnect_receipts')) {
     class RefugeeConnect_receipts
@@ -37,6 +38,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             add_action( 'plugins_loaded', [$this, 'plugin_setup'] );
 
             add_action( 'refugeeconnect_receipt_cron_hook', [$this, 'cron_exec'] );
+
+            add_action('admin_init', [$this, 'download_pdf']);
 
             // Setup template for Requests
             $template = \Httpful\Request::init()
@@ -126,13 +129,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
             return [];
         }
 
-        function pluginprefix_install()
+        function activation()
         {
-            // trigger our function that registers the custom post type
-            //pluginprefix_setup_post_type();
-
-            // clear the permalinks after the post type has been registered
-            //flush_rewrite_rules();
+            $this->database_setup();
+            $this->plugin_setup();
         }
 
         function deactivation()
@@ -377,8 +377,44 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $this->syncCustomers();
         }
 
+        function download_pdf(){
+
+            // Generate PDF receipt
+            if ($_GET['pdf_receipt'] && $_GET['page'] == 'refugee-connect-receipts') {
+                if (!current_user_can('manage_options')) {
+                    wp_die(__('You do not have sufficient permissions to access this page.'));
+                }
+                $sql = $this->wpdb->prepare(
+                    "
+                    SELECT id, Object
+                    FROM {$this->receipt_table_name}
+                    WHERE id = %d
+                    ",
+                    $_GET['pdf_receipt']
+                );
+                $receipt = $this->wpdb->get_row($sql);
+                if (!$receipt) {
+                    wp_die("Invalid Receipt Number");
+                }
+                $receipt_ob = unserialize($receipt->Object);
+                $receipt_html = new RefugeeConnect_receipt_template($receipt_ob);
+
+                $mpdf = new mPDF();
+                $mpdf->WriteHTML($receipt_html->get_html());
+                $mpdf->Output('Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D');
+                die();
+            }
+
+        }
+
         function receipt_page()
         {
+            if (!current_user_can('manage_options')) {
+                wp_die(__('You do not have sufficient permissions to access this page.'));
+            }
+
+            $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+
             $receipts = $this->wpdb->get_results(
                     "
                     SELECT id, SyncToken, CustomerID, TxnDate, ExternalReceipt, Object
@@ -387,13 +423,16 @@ if (!class_exists('RefugeeConnect_receipts')) {
             );
 
             ?>
-            <p><strong>Receipts</strong></p>
+            <h1><strong>Receipts</strong></h1>
             <table class="widefat">
             <thead>
             <tr>
                 <th class="row-title"><?php esc_attr_e( 'Receipt ID', 'wp_admin_style' ); ?></th>
                 <th><?php esc_attr_e( 'Date', 'wp_admin_style' ); ?></th>
+                <th><?php esc_attr_e( 'Donor', 'wp_admin_style' ); ?></th>
                 <th><?php esc_attr_e( 'Line Items', 'wp_admin_style' ); ?></th>
+                <th><?php esc_attr_e( 'Status', 'wp_admin_style' ); ?></th>
+                <th></th>
             </tr>
             </thead>
             <tbody>
@@ -402,13 +441,13 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             foreach ($receipts as $receipt) {
                 $receipt_ob = unserialize($receipt->Object);
-                dump($receipt_ob);
                 ?>
                 <tr valign="top">
                     <td scope="row"><label for="tablecell"><?php esc_attr_e(
                                 $receipt->id, 'wp_admin_style'
                             ); ?></label></td>
                     <td><?php esc_attr_e( $receipt_ob->TxnDate, 'wp_admin_style' ); ?></td>
+                    <td><?php esc_attr_e( $receipt_ob->CustomerRef->name, 'wp_admin_style' ); ?></td>
                     <td><?php
                         $lines = [];
                         foreach ($receipt_ob->Line as $line) {
@@ -419,6 +458,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                         echo implode("<br/>", $lines);
                         
                         ?></td>
+                    <td><?= $receipt->ExternalReceipt ?></td>
+                    <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id?>">Download PDF</a></td>
                 </tr>
                 <?php
             }

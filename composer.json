@@ -1,7 +1,9 @@
 {
     "require": {
         "wheniwork/oauth1-intuit": "^0.1.1",
-        "nategood/httpful": "^0.2.20"
+        "nategood/httpful": "^0.2.20",
+        "mpdf/mpdf": "^6.1",
+        "setasign/fpdi-tcpdf": "^1.6"
     },
     "require-dev": {
         "symfony/var-dumper": "^3.2"
