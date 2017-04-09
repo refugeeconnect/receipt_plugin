@@ -16,12 +16,17 @@ require_once(dirname(__FILE__) . '/receipt-template.php');
 if (!class_exists('RefugeeConnect_receipts')) {
     class RefugeeConnect_receipts
     {
-        private $restTemplate;
+        /**
+         * @var \Wheniwork\OAuth1\Client\Server\Intuit
+         */
         private $intuitOauthServer;
         private $baseUrl;
         private $db_version = 0.2;
         private $receipt_table_name;
         private $customer_table_name;
+        /**
+         * @var wpdb
+         */
         private $wpdb;
 
         public function init()
@@ -478,7 +483,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 }
 
                 ?>
-                </tfoot>
+                </tbody>
             </table>
             <?php
         }
