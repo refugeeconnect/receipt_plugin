@@ -1,21 +1,25 @@
 <?php
 
-class RefugeeConnect_receipt_template {
+class RefugeeConnect_receipt_template
+{
     private $receipt;
 
-    public function __construct($receipt){
+    public function __construct($receipt)
+    {
         $this->receipt = $receipt;
 
     }
 
-    public function get_html(){
+    public function get_html()
+    {
         return $this->header()
             . $this->body_wrapper()
             . $this->items()
             . $this->footer();
     }
 
-    private function header(){
+    private function header()
+    {
         return <<<HTML
 <!doctype html>
 <html>
@@ -107,7 +111,8 @@ HTML;
 
     }
 
-    private function body_wrapper(){
+    private function body_wrapper()
+    {
         return <<<HTML
 <div class="invoice-box">
         <table cellpadding="0" cellspacing="0">
@@ -183,7 +188,8 @@ HTML;
 
     }
 
-    private function items(){
+    private function items()
+    {
         $lines_html = '';
         $lines = [];
         foreach ($this->receipt->Line as $line) {
@@ -191,10 +197,9 @@ HTML;
                 $lines[] = $line;
             }
         }
-        foreach ($lines as $line)
-        {
-            $last="";
-            if ( !next($lines)) {
+        foreach ($lines as $line) {
+            $last = "";
+            if (!next($lines)) {
                 $last = "last";
             }
             $lines_html .= <<<HTML
@@ -222,7 +227,8 @@ HTML;
 HTML;
     }
 
-    private function footer(){
+    private function footer()
+    {
         return <<<HTML
         </table>
     </div>
