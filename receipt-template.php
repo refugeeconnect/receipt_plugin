@@ -4,9 +4,11 @@ class RefugeeConnect_receipt_template
 {
     private $receipt;
 
-    public function __construct($receipt)
+    public function __construct($receipt, $emailAddress)
     {
         $this->receipt = $receipt;
+        $this->emailAddress = $emailAddress ? "($emailAddress)" : "";
+
 
     }
 
@@ -127,7 +129,7 @@ HTML;
                 <td>Date</td><td>{$this->receipt->TxnDate}</td>
             </tr>
             <tr>
-                <td>Donated By</td><td>{$this->receipt->CustomerRef->name} (john@example.com)</td>
+                <td>Donated By</td><td>{$this->receipt->CustomerRef->name} {$this->emailAddress}</td>
             </tr>            
             <tr>
                 <td>Donation Type</td><td>Bank Deposit</td>

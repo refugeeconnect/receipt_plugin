@@ -269,7 +269,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
             add_options_page(
                 'Receipt Options',
-                'Refugee Connect receipts',
+                'Refugee Connect receipts Settings',
                 'manage_options',
                 'refugee-connect-receipts-admin',
                 [$this, 'plugin_options']
@@ -288,6 +288,14 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 'manage_options',
                 'refugee-connect-receipts',
                 [$this, 'receipt_page']
+            );
+
+            add_options_page(
+                'Receipt Options',
+                'Refugee Connect Customers',
+                'manage_options',
+                'refugee-connect-customers',
+                [$this, 'customers_page']
             );
         }
 
@@ -403,9 +411,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 }
                 $sql = $this->wpdb->prepare(
                     "
-                    SELECT id, Object
-                    FROM {$this->receipt_table_name}
-                    WHERE id = %d
+                    SELECT receipt.id AS id, CustomerName, PrimaryEmailAddress, receipt.Object as Object
+                    FROM {$this->receipt_table_name} AS receipt
+                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
+                    WHERE receipt.id = %d
                     ",
                     $_GET['pdf_receipt']
                 );
@@ -414,7 +423,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     wp_die("Invalid Receipt Number");
                 }
                 $receipt_ob = unserialize($receipt->Object);
-                $receipt_html = new RefugeeConnect_receipt_template($receipt_ob);
+                $customer_email = $receipt->PrimaryEmailAddress;
+                $receipt_html = new RefugeeConnect_receipt_template($receipt_ob, $customer_email);
 
                 if (!empty($_GET['preview'])) {
                     echo $receipt_html->get_html();
@@ -483,6 +493,54 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             ?></td>
                         <td><?= $receipt->ExternalReceipt ?></td>
                         <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
+                    </tr>
+                    <?php
+                }
+
+                ?>
+                </tbody>
+            </table>
+            <?php
+        }
+
+        function customers_page()
+        {
+            if (!current_user_can('manage_options')) {
+                wp_die(__('You do not have sufficient permissions to access this page.'));
+            }
+
+            $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+
+            $customers = $this->wpdb->get_results(
+                "
+                    SELECT id, CustomerName, PrimaryEmailAddress
+                    FROM {$this->customer_table_name}
+                    "
+            );
+
+            ?>
+            <h1><strong>Customers</strong></h1>
+            <table class="widefat">
+                <thead>
+                <tr>
+                    <th class="row-title"><?php esc_attr_e('Customer ID', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Name', 'wp_admin_style'); ?></th>
+                    <th><?php esc_attr_e('Primary Email', 'wp_admin_style'); ?></th>
+                </tr>
+                </thead>
+                <tbody>
+
+                <?php
+
+                foreach ($customers as $customer) {
+                    ?>
+                    <tr valign="top">
+                        <td scope="row"><label for="tablecell"><?php esc_attr_e(
+                                    $customer->id,
+                                    'wp_admin_style'
+                                ); ?></label></td>
+                        <td><?php esc_attr_e($customer->CustomerName, 'wp_admin_style'); ?></td>
+                        <td><?php esc_attr_e($customer->PrimaryEmailAddress, 'wp_admin_style'); ?></td>
                     </tr>
                     <?php
                 }
