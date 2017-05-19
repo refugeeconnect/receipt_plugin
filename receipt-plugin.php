@@ -397,7 +397,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
 
             // Generate PDF receipt
-            if ($_GET['pdf_receipt'] && $_GET['page'] == 'refugee-connect-receipts') {
+            if (!empty($_GET['pdf_receipt']) && $_GET['page'] == 'refugee-connect-receipts') {
                 if (!current_user_can('manage_options')) {
                     wp_die(__('You do not have sufficient permissions to access this page.'));
                 }
@@ -416,9 +416,14 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 $receipt_ob = unserialize($receipt->Object);
                 $receipt_html = new RefugeeConnect_receipt_template($receipt_ob);
 
-                $mpdf = new mPDF();
-                $mpdf->WriteHTML($receipt_html->get_html());
-                $mpdf->Output('Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D');
+                if (!empty($_GET['preview'])) {
+                    echo $receipt_html->get_html();
+                } else {
+
+                    $mpdf = new mPDF();
+                    $mpdf->WriteHTML( $receipt_html->get_html() );
+                    $mpdf->Output( 'Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D' );
+                }
                 die();
             }
 
@@ -477,7 +482,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                             ?></td>
                         <td><?= $receipt->ExternalReceipt ?></td>
-                        <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a></td>
+                        <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
                     </tr>
                     <?php
                 }

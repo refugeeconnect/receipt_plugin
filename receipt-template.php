@@ -25,7 +25,6 @@ class RefugeeConnect_receipt_template
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Receipt for Donation</title>
     
     <style>
     .invoice-box{
@@ -51,7 +50,7 @@ class RefugeeConnect_receipt_template
         vertical-align:top;
     }
     
-    .invoice-box table tr td:nth-child(2){
+    .invoice-box table.items tr td:nth-child(2){
         text-align:right;
     }
     
@@ -115,63 +114,26 @@ HTML;
     {
         return <<<HTML
 <div class="invoice-box">
-        <table cellpadding="0" cellspacing="0">
-            <tr class="top">
-                <td colspan="2">
-                    <table>
-                        <tr>
-                            <td class="title">
-                                <img src="https://refugeeconnect.org.au/wp-content/themes/refugee-connect-wordpress-theme/images/footer-logo.png" style="height: 100px;">
-                            </td>
-                            
-                            <td>
-                                Receipt #: {$this->receipt->Id}<br>
-                                Date: {$this->receipt->TxnDate}
-                            </td>
-                        </tr>
-                    </table>
-                </td>
+<img src="https://refugeeconnect.org.au/wp-content/themes/refugee-connect-wordpress-theme/images/footer-logo.png" style="width: 85px; float: left; margin-right: -85px">
+<h1 style="text-align: center">Tax Receipt<br/>Refugee Connect Ltd<br/>
+<span style="font-size: x-small">Formerly: Helping Hands International Australia Ltd.</span>
+</h1>
+
+        <table class="receipt_details" cellpadding="0" cellspacing="0">
+            <tr>
+                <td>Receipt #</td><td>{$this->receipt->Id}</td>
             </tr>
-            
-            <tr class="information">
-                <td colspan="2">
-                    <table>
-                        <tr>
-                            <td>
-                                Refugee Connect Ltd.<br>
-                                3 Forge Close<br>
-                                Sumner Park, QLD 4074<br/>
-                                admin@refugeeconnect.org.au<br/>
-                                ABN: 58 092 560 346
-                            </td>
-                            
-                            <td>
-                                {$this->receipt->CustomerRef->name}<br>
-                                john@example.com
-                            </td>
-                        </tr>
-                    </table>
-                </td>
+            <tr>
+                <td>Date</td><td>{$this->receipt->TxnDate}</td>
             </tr>
-            
-            <tr class="heading">
-                <td>
-                    Payment Type
-                </td>
-                
-                <td>
-                </td>
+            <tr>
+                <td>Donated By</td><td>{$this->receipt->CustomerRef->name} (john@example.com)</td>
+            </tr>            
+            <tr>
+                <td>Donation Type</td><td>Bank Deposit</td>
             </tr>
-            
-           
-            <tr class="details">
-                <td>
-                    Bank Deposit
-                </td>
-                
-                <td>
-                </td>
-            </tr>
+        </table>
+        <table class="items">
             
             <tr class="heading">
                 <td>
@@ -231,6 +193,12 @@ HTML;
     {
         return <<<HTML
         </table>
+        
+        <h3 style="text-align: center">Thank you for your generosity. We appreciate your support!</h3>
+        <p style="text-align: center; font-size: small">Refugee Connect Ltd is a Deductible Gift Recipient.<br/>
+        Qld. Charity Registration number: CH2478<br/>ABN: 58 092 560 346<br/>
+        <strong>Donations over $2 are tax deductible.</strong></p>
+        <p style="text-align: center; font-weight: bold">Questions? Contact Ken on 0421 076 306 or admin@refugeeconnect.org.au</p>
     </div>
 HTML;
     }
