@@ -449,8 +449,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             $receipts = $this->wpdb->get_results(
                 "
-                    SELECT id, SyncToken, CustomerID, TxnDate, ExternalReceipt, Object
-                    FROM {$this->receipt_table_name}
+                    SELECT receipt.id AS id, SyncToken, CustomerID, TxnDate, ExternalReceipt, receipt.Object as Object, PrimaryEmailAddress, {$this->customer_table_name}.Object as CustomerObject
+                    FROM {$this->receipt_table_name} AS receipt
+                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
                     "
             );
 
@@ -473,6 +474,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                 foreach ($receipts as $receipt) {
                     $receipt_ob = unserialize($receipt->Object);
+                    $status_email = '';
+                    if (! $receipt->PrimaryEmailAddress) {
+                        $status_email = '<a title="Email address missing. No automatic receipt possible"><span class="dashicons dashicons-warning"></span></a>';
+                    }
                     ?>
                     <tr valign="top">
                         <td scope="row"><label for="tablecell"><?php esc_attr_e(
@@ -491,7 +496,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             echo implode("<br/>", $lines);
 
                             ?></td>
-                        <td><?= $receipt->ExternalReceipt ?></td>
+                        <td><?= $receipt->ExternalReceipt ?> <?= $status_email ?></td>
                         <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
                     </tr>
                     <?php
