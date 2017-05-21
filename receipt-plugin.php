@@ -24,6 +24,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         private $db_version = 0.2;
         private $receipt_table_name;
         private $customer_table_name;
+        private $sandbox;
         /**
          * @var wpdb
          */
@@ -63,6 +64,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         public function cron_exec()
         {
+            $this->setupOAuth();
             $this->syncSalesReceipts();
         }
 
@@ -401,6 +403,23 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $this->syncCustomers();
         }
 
+        private function getReceipt($id) {
+            $sql = $this->wpdb->prepare(
+                "
+                    SELECT receipt.id AS id, CustomerName, PrimaryEmailAddress, receipt.Object as Object
+                    FROM {$this->receipt_table_name} AS receipt
+                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
+                    WHERE receipt.id = %d
+                    ",
+                $id
+            );
+            $receipt = $this->wpdb->get_row($sql);
+            if (!$receipt) {
+                wp_die("Invalid Receipt Number");
+            }
+            return $receipt;
+        }
+
         function download_pdf()
         {
 
@@ -409,19 +428,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 if (!current_user_can('manage_options')) {
                     wp_die(__('You do not have sufficient permissions to access this page.'));
                 }
-                $sql = $this->wpdb->prepare(
-                    "
-                    SELECT receipt.id AS id, CustomerName, PrimaryEmailAddress, receipt.Object as Object
-                    FROM {$this->receipt_table_name} AS receipt
-                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
-                    WHERE receipt.id = %d
-                    ",
-                    $_GET['pdf_receipt']
-                );
-                $receipt = $this->wpdb->get_row($sql);
-                if (!$receipt) {
-                    wp_die("Invalid Receipt Number");
-                }
+                $receipt = $this->getReceipt($_GET['pdf_receipt']);
                 $receipt_ob = unserialize($receipt->Object);
                 $customer_email = $receipt->PrimaryEmailAddress;
                 $receipt_html = new RefugeeConnect_receipt_template($receipt_ob, $customer_email);
@@ -455,6 +462,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     "
             );
 
+            if (!empty($_GET['send_email'])) {
+                $this->sendReceiptEmail($_GET['send_email']);
+            }
+
             ?>
             <h1><strong>Receipts</strong></h1>
             <table class="widefat">
@@ -474,9 +485,13 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                 foreach ($receipts as $receipt) {
                     $receipt_ob = unserialize($receipt->Object);
-                    $status_email = '';
                     if (! $receipt->PrimaryEmailAddress) {
                         $status_email = '<a title="Email address missing. No automatic receipt possible"><span class="dashicons dashicons-warning"></span></a>';
+                        $customer_email = '';
+                    } else {
+                        $status_email = '';
+                        $email_address = esc_attr__($receipt->PrimaryEmailAddress, 'wp_admin_style');;
+                        $customer_email = "<a title='{$email_address}'><span  style='font-size: smaller' class='dashicons dashicons-email'></span></a>";
                     }
                     ?>
                     <tr valign="top">
@@ -485,7 +500,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                                     'wp_admin_style'
                                 ); ?></label></td>
                         <td><?php esc_attr_e($receipt_ob->TxnDate, 'wp_admin_style'); ?></td>
-                        <td><?php esc_attr_e($receipt_ob->CustomerRef->name, 'wp_admin_style'); ?></td>
+                        <td><?php esc_attr_e($receipt_ob->CustomerRef->name, 'wp_admin_style'); ?> <?= $customer_email ?></td>
                         <td><?php
                             $lines = [];
                             foreach ($receipt_ob->Line as $line) {
@@ -498,6 +513,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             ?></td>
                         <td><?= $receipt->ExternalReceipt ?> <?= $status_email ?></td>
                         <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
+                        <td><a href="<?= $current_url . '&send_email=' . $receipt->id ?>">Send Email Receipt</a></td>
                     </tr>
                     <?php
                 }
@@ -513,8 +529,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
             if (!current_user_can('manage_options')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
             }
-
-            $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
 
             $customers = $this->wpdb->get_results(
                 "
@@ -633,6 +647,54 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 </div>
                 <?php
             }
+        }
+
+        public function sendReceiptEmail($receiptID) {
+            $receipt = $this->getReceipt($receiptID);
+
+            $receipt_ob = unserialize($receipt->Object);
+            $customer_email = $receipt->PrimaryEmailAddress;
+
+            if (!$customer_email) {
+                ?>
+                <div class="notice notice-error is-dismissible">
+                    <p>Unable to send receipt(<?= $receipt_ob->Id ?>) to <?= $receipt->CustomerName ?> due to missing email address</p>
+                </div>
+                <?php
+                return false;
+            }
+
+
+            $receipt_html = new RefugeeConnect_receipt_template($receipt_ob, $customer_email);
+
+            $attachment = '/tmp/Donation_Receipt_' . $receipt_ob->Id . '.pdf';
+
+            $mpdf = new mPDF();
+            $mpdf->WriteHTML( $receipt_html->get_html() );
+            $mpdf->Output($attachment , 'F' );
+
+            add_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
+
+            $to = $customer_email;
+            $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->Id;
+            $body = $receipt_html->get_html();
+
+            wp_mail( $to, $subject, $body, '', $attachment );
+
+            // Reset content-type to avoid conflicts -- https://core.trac.wordpress.org/ticket/23578
+            remove_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
+
+            ?>
+            <div class="notice notice-success is-dismissible">
+                <p>Sent email to <?= $customer_email ?></p>
+            </div>
+            <?php
+
+
+        }
+
+        public function wpdocs_set_html_mail_content_type() {
+            return 'text/html';
         }
 
 
