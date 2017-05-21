@@ -682,7 +682,12 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->Id;
             $body = $receipt_html->get_html();
 
-            wp_mail( $to, $subject, $body, '', $attachment );
+            // TODO Put these in settings
+            $headers[] = 'From: Refugee Connect <>';
+            $headers[] = 'Reply-To: Refugee Connect <>';
+            $headers[] = 'Bcc: Reciept BCC <>';
+
+            wp_mail( $to, $subject, $body, $headers, $attachment );
 
             // Reset content-type to avoid conflicts -- https://core.trac.wordpress.org/ticket/23578
             remove_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
