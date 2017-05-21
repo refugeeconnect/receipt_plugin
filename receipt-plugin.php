@@ -428,6 +428,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 if (!current_user_can('manage_options')) {
                     wp_die(__('You do not have sufficient permissions to access this page.'));
                 }
+                check_admin_referer( 'download-receipt_'.$_GET['pdf_receipt'] );
+
                 $receipt = $this->getReceipt($_GET['pdf_receipt']);
                 $receipt_ob = unserialize($receipt->Object);
                 $customer_email = $receipt->PrimaryEmailAddress;
@@ -452,7 +454,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
             }
 
-            $current_url = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+            $current_url = admin_url( "options-general.php?page=".$_GET["page"] );
 
             $receipts = $this->wpdb->get_results(
                 "
@@ -463,6 +465,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             );
 
             if (!empty($_GET['send_email'])) {
+                check_admin_referer( 'send-receipt-email_'.$_GET['send_email'] );
                 $this->sendReceiptEmail($_GET['send_email']);
             }
 
@@ -512,8 +515,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                             ?></td>
                         <td><?= $receipt->ExternalReceipt ?> <?= $status_email ?></td>
-                        <td><a href="<?= $current_url . '&pdf_receipt=' . $receipt->id ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
-                        <td><a href="<?= $current_url . '&send_email=' . $receipt->id ?>">Send Email Receipt</a></td>
+                        <td><a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_'. $receipt->id) ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
+                        <td><a href="<?= wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) ?>">Send Email Receipt</a></td>
                     </tr>
                     <?php
                 }
