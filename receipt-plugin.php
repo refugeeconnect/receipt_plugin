@@ -111,18 +111,30 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
         }
 
+        /**
+         * Gets the option from our shared refugeeconnect_receipt_settings option
+         * @param $option string Array index of the option we want
+         * @return mixed
+         */
+        private function get_rc_option($option) {
+            $options = get_option('refugeeconnect_receipt_settings', []);
+            if(!empty($options[$option])) {
+                return $options[$option];
+            }
+            return null;
+        }
+
         public function setupOAuth()
         {
-            $options = get_option('refugeeconnect_receipt_settings', []);
             $this->intuitOauthServer = new Wheniwork\OAuth1\Client\Server\Intuit(
                 [
-                    'identifier' => $options['intuit_app_oauth_key'],
-                    'secret' => $options['intuit_app_oauth_secret'],
+                    'identifier' => $this->get_rc_option('intuit_app_oauth_key'),
+                    'secret' => $this->get_rc_option('intuit_app_oauth_secret'),
                     'callback_uri' => (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]",
                 ]
             );
 
-            $this->sandbox = $options['intuit_app_sandbox'] = "on" ? true : false;
+            $this->sandbox = $this->get_rc_option('intuit_app_sandbox') == "on" ? true : false;
 
             $this->baseUrl = 'https://quickbooks.api.intuit.com';
             if ($this->sandbox) {
@@ -213,7 +225,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     'setting' => 'refugeeconnect_receipt_settings',
                     'field' => 'intuit_app_custom_field',
                     'label' => '',
-                    'class' => 'regular-text'
+                    'class' => 'regular-text',
+                    'default' => 'ExternalReceipt'
                 ]
             );
 
@@ -231,10 +244,83 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 ]
             );
 
-            if (get_option('intuit_app_custom_field') === false) // Nothing yet saved
-            {
-                update_option('intuit_app_custom_field', 'ExternalReceipt');
-            }
+            add_settings_section(
+                'settingssection2',
+                'Email Receipt Settings',
+                [$this, 'settings_section_callback'],
+                'refugeeconnect_receipt_settings'
+            );
+
+            add_settings_field(
+                'email_from_address',
+                'From Email Address',
+                [$this, 'settings_field'],
+                'refugeeconnect_receipt_settings',
+                'settingssection2',
+                [
+                    'setting' => 'refugeeconnect_receipt_settings',
+                    'field' => 'email_from_address',
+                    'label' => '',
+                    'class' => 'regular-text'
+                ]
+            );
+
+            add_settings_field(
+                'email_from_name',
+                'From Email Name',
+                [$this, 'settings_field'],
+                'refugeeconnect_receipt_settings',
+                'settingssection2',
+                [
+                    'setting' => 'refugeeconnect_receipt_settings',
+                    'field' => 'email_from_name',
+                    'label' => '',
+                    'class' => 'regular-text'
+                ]
+            );
+
+            add_settings_field(
+                'email_replyto_address',
+                'Reply To Email Address',
+                [$this, 'settings_field'],
+                'refugeeconnect_receipt_settings',
+                'settingssection2',
+                [
+                    'setting' => 'refugeeconnect_receipt_settings',
+                    'field' => 'email_replyto_address',
+                    'label' => '',
+                    'class' => 'regular-text'
+                ]
+            );
+
+            add_settings_field(
+                'email_replyto_name',
+                'Reply To Name',
+                [$this, 'settings_field'],
+                'refugeeconnect_receipt_settings',
+                'settingssection2',
+                [
+                    'setting' => 'refugeeconnect_receipt_settings',
+                    'field' => 'email_replyto_name',
+                    'label' => '',
+                    'class' => 'regular-text'
+                ]
+            );
+
+            add_settings_field(
+                'email_bcc',
+                'BCC Email Address',
+                [$this, 'settings_field'],
+                'refugeeconnect_receipt_settings',
+                'settingssection2',
+                [
+                    'setting' => 'refugeeconnect_receipt_settings',
+                    'field' => 'email_bcc',
+                    'label' => '',
+                    'class' => 'regular-text'
+                ]
+            );
+
         }
 
         public function settings_section_callback()
@@ -658,6 +744,15 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $receipt_ob = unserialize($receipt->Object);
             $customer_email = $receipt->PrimaryEmailAddress;
 
+            if(!$this->get_rc_option('email_from_address')) {
+                ?>
+                <div class="notice notice-error is-dismissible">
+                    <p>Unable to send receipt(<?= $receipt_ob->Id ?>) to <?= $receipt->CustomerName ?> due to missing From Address in <a href="<?= admin_url( "options-general.php?page=refugee-connect-receipts-admin" ) ?>">Settings</a></p>
+                </div>
+                <?php
+                return false;
+            }
+
             if (!$customer_email) {
                 ?>
                 <div class="notice notice-error is-dismissible">
@@ -682,10 +777,13 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->Id;
             $body = $receipt_html->get_html();
 
-            // TODO Put these in settings
-            $headers[] = 'From: Refugee Connect <>';
-            $headers[] = 'Reply-To: Refugee Connect <>';
-            $headers[] = 'Bcc: Reciept BCC <>';
+            $headers[] = "From: {$this->get_rc_option('email_from_name')} <{$this->get_rc_option('email_from_address')}>";
+            if ( $this->get_rc_option( 'email_replyto_address' ) ) {
+                $headers[] = "Reply-To: {$this->get_rc_option('email_replyto_name')} <{$this->get_rc_option('email_replyto_address')}>";
+            }
+            if ( $this->get_rc_option( 'email_bcc' ) ) {
+                $headers[] = "Bcc: <{$this->get_rc_option('email_bcc')}>";
+            }
 
             wp_mail( $to, $subject, $body, $headers, $attachment );
 
