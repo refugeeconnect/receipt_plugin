@@ -66,6 +66,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
             $this->setupOAuth();
             $this->syncSalesReceipts();
+            $this->syncCustomers();
         }
 
         public function database_setup()
@@ -355,6 +356,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         function plugin_menu()
         {
+
             add_options_page(
                 'Receipt Options',
                 'Refugee Connect receipts Settings',
@@ -471,7 +473,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
             if (!current_user_can('manage_options')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
             }
-            var_dump(get_option('refugeeconnect_receipt_temp_cred', ''));
 
             ?>
             <div class="wrap">
@@ -485,8 +486,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 </form>
             </div>
             <?php
-            $this->syncSalesReceipts();
-            $this->syncCustomers();
         }
 
         private function getReceipt($id) {
@@ -555,6 +554,12 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 $this->sendReceiptEmail($_GET['send_email']);
             }
 
+            if (!empty($_GET['sync'])) {
+                check_admin_referer( 'sync-receipts' );
+                $this->syncSalesReceipts();
+                $this->syncCustomers();
+            }
+
             ?>
             <h1><strong>Receipts</strong></h1>
             <table class="widefat">
@@ -610,6 +615,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 ?>
                 </tbody>
             </table>
+
+            <a href="<?= wp_nonce_url($current_url . '&sync='.time(), 'sync-receipts') ?>">Force sync from Quickbooks</a>
             <?php
         }
 
@@ -714,7 +721,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             // TODO pagination to ensure we get all customers
             $count = 0;
-            dump($response->body->QueryResponse);
             foreach ($response->body->QueryResponse->Customer as $customer) {
                 $this->wpdb->replace(
                     $this->customer_table_name,

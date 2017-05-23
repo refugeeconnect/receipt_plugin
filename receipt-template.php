@@ -200,7 +200,7 @@ HTML;
         <p style="text-align: center; font-size: small">Refugee Connect Ltd is a Deductible Gift Recipient.<br/>
         Qld. Charity Registration number: CH2478<br/>ABN: 58 092 560 346<br/>
         <strong>Donations over $2 are tax deductible.</strong></p>
-        <p style="text-align: center; font-weight: bold">Questions? Contact Ken on 0421 076 306 or admin@refugeeconnect.org.au</p>
+        <p style="text-align: center; font-weight: bold">Questions? Contact Ken on 0421 076 306 or <a href="mailto:admin@refugeeconnect.org.au">admin@refugeeconnect.org.au</a></p>
     </div>
 HTML;
     }
