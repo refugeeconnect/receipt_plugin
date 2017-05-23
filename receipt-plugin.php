@@ -836,10 +836,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 return true;
             } elseif ($response->body->Fault->Error) {
                 foreach ($response->body->Fault->Error as $error) {
-                    $this->error(
+                    $this->addNotice(
                         "Unable to update QuickBooks Receipt #{$receipt_ob->DocNumber} - 
                              {$error->Detail}<br/>
-                             Try forcing sync of receipt's before retrying");
+                             Try forcing sync of receipt's before retrying", 'error');
                 }
             }
             return false;
@@ -851,9 +851,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             $receipt_ob = unserialize($receipt->Object);
             if (!$this->updateExternalStatus($receiptID, "MANUAL " . time())) {
-                return $this->error(
+                return $this->addNotice(
                     "Unable to mark receipt #{$receipt_ob->DocNumber} as sent to {$receipt->CustomerName} due to issue
-                     updating Quickbooks Status");
+                     updating Quickbooks Status", 'error');
             }
 
             $this->addNotice("Marked Receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} as sent", 'success');
