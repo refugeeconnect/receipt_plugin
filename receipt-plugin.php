@@ -960,16 +960,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
             return false;
         }
 
-        private function success($message)
-        {
-            ?>
-            <div class="notice notice-success is-dismissible">
-                <p><?= $message ?></p>
-            </div>
-            <?php
-            return true;
-        }
-
 
     }
 
