@@ -123,7 +123,7 @@ HTML;
 
         <table class="receipt_details" cellpadding="0" cellspacing="0">
             <tr>
-                <td>Receipt #</td><td>{$this->receipt->Id}</td>
+                <td>Receipt #</td><td>{$this->receipt->DocNumber}</td>
             </tr>
             <tr>
                 <td>Date</td><td>{$this->receipt->TxnDate}</td>

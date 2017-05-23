@@ -421,13 +421,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     <?php
 
                 } catch (Exception $e) {
-                    ?>
-                    <div class="notice notice-error is-dismissible">
-                        <p>Failed to connect to Intuit</p>
-                        <p><?= $e->getCode() ?>: <?= $e->getMessage() ?></p>
-                    </div>
-                    <?php
-
+                    $this->error("Failed to connect to Intuit<br/>
+                        {$e->getCode()}: {$e->getMessage()}");
                 }
 
 
@@ -541,14 +536,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             $current_url = admin_url( "options-general.php?page=".$_GET["page"] );
 
-            $receipts = $this->wpdb->get_results(
-                "
-                    SELECT receipt.id AS id, SyncToken, CustomerID, TxnDate, ExternalReceipt, receipt.Object as Object, PrimaryEmailAddress, {$this->customer_table_name}.Object as CustomerObject
-                    FROM {$this->receipt_table_name} AS receipt
-                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
-                    "
-            );
-
             if (!empty($_GET['send_email'])) {
                 check_admin_referer( 'send-receipt-email_'.$_GET['send_email'] );
                 $this->sendReceiptEmail($_GET['send_email']);
@@ -559,6 +546,16 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 $this->syncSalesReceipts();
                 $this->syncCustomers();
             }
+
+            $receipts = $this->wpdb->get_results(
+                "
+                    SELECT receipt.id AS id, SyncToken, CustomerID, TxnDate, ExternalReceipt, receipt.Object as Object, PrimaryEmailAddress, {$this->customer_table_name}.Object as CustomerObject
+                    FROM {$this->receipt_table_name} AS receipt
+                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
+                    "
+            );
+
+
 
             ?>
             <h1><strong>Receipts</strong></h1>
@@ -589,8 +586,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     }
                     ?>
                     <tr valign="top">
-                        <td scope="row"><label for="tablecell"><?php esc_attr_e(
-                                    $receipt->id,
+                        <td scope="row"><label for="tablecell" title="<?= $receipt_ob->Id ?>"><?php esc_attr_e(
+                                    $receipt_ob->DocNumber,
                                     'wp_admin_style'
                                 ); ?></label></td>
                         <td><?php esc_attr_e($receipt_ob->TxnDate, 'wp_admin_style'); ?></td>
@@ -605,7 +602,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             echo implode("<br/>", $lines);
 
                             ?></td>
-                        <td><?= $receipt->ExternalReceipt ?> <?= $status_email ?></td>
+                        <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?> <?= $status_email ?></td>
                         <td><a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_'. $receipt->id) ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
                         <td><a href="<?= wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) ?>">Send Email Receipt</a></td>
                     </tr>
@@ -666,6 +663,22 @@ if (!class_exists('RefugeeConnect_receipts')) {
             <?php
         }
 
+        private function externalStatusFancy($status)
+        {
+            if ($this->startsWith($status, 'EMAIL ')) {
+                $unixtimestamp = substr($status, 6);
+                $unixtimestamp += 3600*10; // Hard code UTC offset for Brisbane for now, less code
+                $timestamp = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $unixtimestamp, false);
+                return "Sent Email $timestamp";
+            }
+            return $status;
+        }
+
+        // https://stackoverflow.com/a/10473026
+        private function startsWith($haystack, $needle) {
+            // search backwards starting from haystack length characters from the end
+            return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== false;
+        }
         private function externalReceiptStatus($receipt)
         {
             foreach ($receipt->CustomField as $custom_field) {
@@ -675,7 +688,16 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     }
                 }
             }
-            return "NotSet";
+            return "Not Sent";
+        }
+
+        private function updateCustomField($receipt, $status)
+        {
+            foreach ($receipt->CustomField as $custom_field) {
+                if ($custom_field->Name == get_option('intuit_app_custom_field')) {
+                    $custom_field->StringValue = $status;
+                }
+            }
         }
 
         function syncSalesReceipts()
@@ -688,17 +710,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             // TODO pagination to ensure we get all receipts
             $count = 0;
             foreach ($response->body->QueryResponse->SalesReceipt as $receipt) {
-                $this->wpdb->replace(
-                    $this->receipt_table_name,
-                    [
-                        'id' => (int)$receipt->Id,
-                        'SyncToken' => $receipt->SyncToken,
-                        'CustomerID' => $receipt->CustomerRef->value,
-                        'TxnDate' => $receipt->TxnDate,
-                        'ExternalReceipt' => $this->externalReceiptStatus($receipt),
-                        'Object' => serialize($receipt)
-                    ]
-                );
+                $this->updateReceiptRow($receipt);
                 $count++;
             }
 
@@ -710,6 +722,20 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 </div>
                 <?php
             }
+        }
+
+        private function updateReceiptRow($receipt) {
+            return $this->wpdb->replace(
+                $this->receipt_table_name,
+                [
+                    'id' => (int)$receipt->Id,
+                    'SyncToken' => $receipt->SyncToken,
+                    'CustomerID' => $receipt->CustomerRef->value,
+                    'TxnDate' => $receipt->TxnDate,
+                    'ExternalReceipt' => $this->externalReceiptStatus($receipt),
+                    'Object' => serialize($receipt)
+                ]
+            );
         }
 
         function syncCustomers()
@@ -744,28 +770,73 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
         }
 
+        /**
+         * Updates QuickBooks ExternalReceipt status field
+         * @param $receiptID int
+         * @param $status string Status to update in QuickBooks
+         * @return bool
+         */
+        private function updateExternalStatus($receiptID, $status) {
+            $receipt = $this->getReceipt($receiptID);
+            $receipt_ob = unserialize($receipt->Object);
+            $this->updateCustomField($receipt_ob, $status);
+
+            $update_ob = [
+                "sparse" => true,
+                "Id" => $receipt_ob->Id,
+                "SyncToken" => $receipt_ob->SyncToken,
+                "CustomField" => $receipt_ob->CustomField
+            ];
+
+            $uri = $this->baseUrl . 'salesreceipt';
+            $response = \Httpful\Request::post($uri)
+                ->addHeaders($this->getAuthHeader('POST', $uri))
+                ->sendsJson()
+                ->body(json_encode($update_ob))
+                ->send();
+
+            if($response->body->SalesReceipt) {
+                $this->updateReceiptRow($response->body->SalesReceipt);
+                ?>
+                <div class="notice notice-success is-dismissible">
+                    <p>Synced status of Receipt #<?= $receipt_ob->DocNumber ?> to QuickBooks</p>
+                </div>
+                <?php
+                return true;
+            } elseif ($response->body->Fault->Error) {
+                foreach($response->body->Fault->Error as $error) {
+                    $this->error(
+                            "Unable to update QuickBooks Receipt #{$receipt_ob->DocNumber} - 
+                             {$error->Detail}<br/>
+                             Try forcing sync of receipt's before retrying");
+                }
+            }
+            return false;
+        }
+
         public function sendReceiptEmail($receiptID) {
             $receipt = $this->getReceipt($receiptID);
 
             $receipt_ob = unserialize($receipt->Object);
             $customer_email = $receipt->PrimaryEmailAddress;
 
-            if(!$this->get_rc_option('email_from_address')) {
-                ?>
-                <div class="notice notice-error is-dismissible">
-                    <p>Unable to send receipt(<?= $receipt_ob->Id ?>) to <?= $receipt->CustomerName ?> due to missing From Address in <a href="<?= admin_url( "options-general.php?page=refugee-connect-receipts-admin" ) ?>">Settings</a></p>
-                </div>
-                <?php
-                return false;
+            if (!$this->get_rc_option('email_from_address')) {
+                return $this->error(
+                    "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to missing From 
+                        Address in <a href='" . admin_url("options-general.php?page=refugee-connect-receipts-admin")
+                    . "'>Settings</a>");
             }
 
             if (!$customer_email) {
-                ?>
-                <div class="notice notice-error is-dismissible">
-                    <p>Unable to send receipt(<?= $receipt_ob->Id ?>) to <?= $receipt->CustomerName ?> due to missing email address</p>
-                </div>
-                <?php
-                return false;
+                return $this->error(
+                    "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to missing customer
+                         email address");
+            }
+
+            if (!$this->updateExternalStatus($receiptID, "EMAIL ".time())) {
+                return $this->error(
+                        "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to issue updating 
+                        Quickbooks Status");
             }
 
 
@@ -796,17 +867,29 @@ if (!class_exists('RefugeeConnect_receipts')) {
             // Reset content-type to avoid conflicts -- https://core.trac.wordpress.org/ticket/23578
             remove_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
 
-            ?>
-            <div class="notice notice-success is-dismissible">
-                <p>Sent email to <?= $customer_email ?></p>
-            </div>
-            <?php
-
-
+            $this->success("Sent Receipt #{$receipt_ob->DocNumber} to $customer_email");
         }
 
         public function wpdocs_set_html_mail_content_type() {
             return 'text/html';
+        }
+
+        private function error($message) {
+            ?>
+            <div class="notice notice-error is-dismissible">
+                <p><?= $message ?></p>
+            </div>
+            <?php
+            return false;
+        }
+
+        private function success($message) {
+            ?>
+            <div class="notice notice-success is-dismissible">
+                <p><?= $message ?></p>
+            </div>
+            <?php
+            return true;
         }
 
 
