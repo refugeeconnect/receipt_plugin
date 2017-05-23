@@ -47,6 +47,11 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             add_action('admin_init', [$this, 'download_pdf']);
 
+            add_action('admin_notices', [$this, 'admin_notices']);
+
+            add_action('admin_post_send_receipt_email', [$this, 'send_receipt_email_hook']);
+            add_action('admin_post_mark_receipt_manual', [$this, 'mark_receipt_manual_hook']);
+
             // Setup template for Requests
             $template = \Httpful\Request::init()
                 ->expectsJson();
@@ -528,6 +533,20 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         }
 
+        function send_receipt_email_hook() {
+            check_admin_referer( 'send-receipt-email_'.$_GET['send_email'] );
+            $this->sendReceiptEmail($_GET['send_email']);
+            wp_redirect(admin_url( "options-general.php?page=refugee-connect-receipts"));
+            exit();
+        }
+
+        function mark_receipt_manual_hook() {
+            check_admin_referer( 'send-receipt-manual_'.$_GET['mark_sent'] );
+            $this->markReceiptManuallySent($_GET['mark_sent']);
+            wp_redirect(admin_url( "options-general.php?page=refugee-connect-receipts"));
+            exit();
+        }
+
         function receipt_page()
         {
             if (!current_user_can('manage_options')) {
@@ -535,16 +554,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
 
             $current_url = admin_url( "options-general.php?page=".$_GET["page"] );
-
-            if (!empty($_GET['send_email'])) {
-                check_admin_referer( 'send-receipt-email_'.$_GET['send_email'] );
-                $this->sendReceiptEmail($_GET['send_email']);
-            }
-
-            if (!empty($_GET['mark_sent'])) {
-                check_admin_referer( 'send-receipt-manual_'.$_GET['mark_sent'] );
-                $this->markReceiptManuallySent($_GET['mark_sent']);
-            }
 
             if (!empty($_GET['sync'])) {
                 check_admin_referer( 'sync-receipts' );
@@ -583,11 +592,11 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     $receipt_ob = unserialize($receipt->Object);
                     if (! $receipt->PrimaryEmailAddress) {
                         $customer_email = '';
-                        $send_receipt = '<a href="'. wp_nonce_url($current_url . '&mark_sent=' . $receipt->id, 'send-receipt-manual_'.$receipt->id) .'">Mark as manually sent</a>';
+                        $send_receipt = '<a href="'. wp_nonce_url(admin_url('admin-post.php') . '?action=mark_receipt_manual&mark_sent=' . $receipt->id, 'send-receipt-manual_'.$receipt->id) .'">Mark as manually sent</a>';
                     } else {
                         $email_address = esc_attr__($receipt->PrimaryEmailAddress, 'wp_admin_style');;
                         $customer_email = "<a title='{$email_address}'><span  style='font-size: smaller' class='dashicons dashicons-email'></span></a>";
-                        $send_receipt = '<a href="'. wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) .'">Send Email Receipt</a>';
+                        $send_receipt = '<a href="'. wp_nonce_url(admin_url('admin-post.php') . '?action=send_receipt_email&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) .'">Send Email Receipt</a>';
                     }
                     ?>
                     <tr valign="top">
@@ -836,7 +845,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                      updating Quickbooks Status");
             }
 
-            $this->success("Marked Receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} as sent");
+            $this->addNotice("Marked Receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} as sent", 'success');
         }
 
 
@@ -847,22 +856,22 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $customer_email = $receipt->PrimaryEmailAddress;
 
             if (!$this->get_rc_option('email_from_address')) {
-                return $this->error(
+                return $this->addNotice(
                     "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to missing From 
                         Address in <a href='" . admin_url("options-general.php?page=refugee-connect-receipts-admin")
-                    . "'>Settings</a>");
+                    . "'>Settings</a>", 'error');
             }
 
             if (!$customer_email) {
-                return $this->error(
+                return $this->addNotice(
                     "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to missing customer
-                         email address");
+                         email address", 'error');
             }
 
             if (!$this->updateExternalStatus($receiptID, "EMAIL ".time())) {
-                return $this->error(
+                return $this->addNotice(
                         "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to issue updating 
-                        Quickbooks Status");
+                        Quickbooks Status", 'error');
             }
 
 
@@ -893,11 +902,38 @@ if (!class_exists('RefugeeConnect_receipts')) {
             // Reset content-type to avoid conflicts -- https://core.trac.wordpress.org/ticket/23578
             remove_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
 
-            $this->success("Sent Receipt #{$receipt_ob->DocNumber} to $customer_email");
+            $this->addNotice("Sent Receipt #{$receipt_ob->DocNumber} to $customer_email", 'success');
         }
 
         public function wpdocs_set_html_mail_content_type() {
             return 'text/html';
+        }
+
+        public function admin_notices() {
+            /* Check transient, if available display notice */
+            $notices = get_transient( 'rc-receipt-admin-notices' );
+            if( $notices ){
+                foreach($notices as $notice) {
+                    ?>
+                    <div class="notice notice-<?= $notice->type ?> is-dismissible">
+                        <p><?= $notice->message ?></p>
+                    </div>
+                    <?php
+                }
+                /* Delete transient, only display this notice once. */
+                delete_transient( 'rc-receipt-admin-notices' );
+            }
+        }
+
+        private function addNotice($message, $type)
+        {
+            $notice = (object)['message' => $message, 'type' => $type];
+            $notices = get_transient('rc-receipt-admin-notices');
+            if (!is_array($notices)) {
+                $notices = [];
+            }
+            $notices[] = $notice;
+            set_transient('rc-receipt-admin-notices', $notices);
         }
 
         private function error($message) {
