@@ -541,6 +541,11 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 $this->sendReceiptEmail($_GET['send_email']);
             }
 
+            if (!empty($_GET['mark_sent'])) {
+                check_admin_referer( 'send-receipt-manual_'.$_GET['mark_sent'] );
+                $this->markReceiptManuallySent($_GET['mark_sent']);
+            }
+
             if (!empty($_GET['sync'])) {
                 check_admin_referer( 'sync-receipts' );
                 $this->syncSalesReceipts();
@@ -579,10 +584,12 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     if (! $receipt->PrimaryEmailAddress) {
                         $status_email = '<a title="Email address missing. No automatic receipt possible"><span class="dashicons dashicons-warning"></span></a>';
                         $customer_email = '';
+                        $send_receipt = '<a href="'. wp_nonce_url($current_url . '&mark_sent=' . $receipt->id, 'send-receipt-manual_'.$receipt->id) .'">Mark as manually sent</a>';
                     } else {
                         $status_email = '';
                         $email_address = esc_attr__($receipt->PrimaryEmailAddress, 'wp_admin_style');;
                         $customer_email = "<a title='{$email_address}'><span  style='font-size: smaller' class='dashicons dashicons-email'></span></a>";
+                        $send_receipt = '<a href="'. wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) .'">Send Email Receipt</a>';
                     }
                     ?>
                     <tr valign="top">
@@ -604,7 +611,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             ?></td>
                         <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?> <?= $status_email ?></td>
                         <td><a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_'. $receipt->id) ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
-                        <td><a href="<?= wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) ?>">Send Email Receipt</a></td>
+                        <td><?= $send_receipt ?></td>
                     </tr>
                     <?php
                 }
@@ -670,6 +677,12 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 $unixtimestamp += 3600*10; // Hard code UTC offset for Brisbane for now, less code
                 $timestamp = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $unixtimestamp, false);
                 return "Sent Email $timestamp";
+            }
+            if ($this->startsWith($status, 'MANUAL ')) {
+                $unixtimestamp = substr($status, 7);
+                $unixtimestamp += 3600*10; // Hard code UTC offset for Brisbane for now, less code
+                $timestamp = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $unixtimestamp, false);
+                return "Sent Manual $timestamp";
             }
             return $status;
         }
@@ -813,6 +826,21 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
             return false;
         }
+
+        public function markReceiptManuallySent($receiptID)
+        {
+            $receipt = $this->getReceipt($receiptID);
+
+            $receipt_ob = unserialize($receipt->Object);
+            if (!$this->updateExternalStatus($receiptID, "MANUAL ".time())) {
+                return $this->error(
+                    "Unable to mark receipt #{$receipt_ob->DocNumber} as sent to {$receipt->CustomerName} due to issue
+                     updating Quickbooks Status");
+            }
+
+            $this->success("Marked Receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} as sent");
+        }
+
 
         public function sendReceiptEmail($receiptID) {
             $receipt = $this->getReceipt($receiptID);
