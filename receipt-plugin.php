@@ -582,11 +582,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 foreach ($receipts as $receipt) {
                     $receipt_ob = unserialize($receipt->Object);
                     if (! $receipt->PrimaryEmailAddress) {
-                        $status_email = '<a title="Email address missing. No automatic receipt possible"><span class="dashicons dashicons-warning"></span></a>';
                         $customer_email = '';
                         $send_receipt = '<a href="'. wp_nonce_url($current_url . '&mark_sent=' . $receipt->id, 'send-receipt-manual_'.$receipt->id) .'">Mark as manually sent</a>';
                     } else {
-                        $status_email = '';
                         $email_address = esc_attr__($receipt->PrimaryEmailAddress, 'wp_admin_style');;
                         $customer_email = "<a title='{$email_address}'><span  style='font-size: smaller' class='dashicons dashicons-email'></span></a>";
                         $send_receipt = '<a href="'. wp_nonce_url($current_url . '&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) .'">Send Email Receipt</a>';
@@ -609,7 +607,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                             echo implode("<br/>", $lines);
 
                             ?></td>
-                        <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?> <?= $status_email ?></td>
+                        <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?></td>
                         <td><a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_'. $receipt->id) ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
                         <td><?= $send_receipt ?></td>
                     </tr>
