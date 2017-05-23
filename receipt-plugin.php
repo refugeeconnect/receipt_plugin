@@ -122,9 +122,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
          * @param $option string Array index of the option we want
          * @return mixed
          */
-        private function get_rc_option($option) {
+        private function get_rc_option($option)
+        {
             $options = get_option('refugeeconnect_receipt_settings', []);
-            if(!empty($options[$option])) {
+            if (!empty($options[$option])) {
                 return $options[$option];
             }
             return null;
@@ -488,7 +489,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             <?php
         }
 
-        private function getReceipt($id) {
+        private function getReceipt($id)
+        {
             $sql = $this->wpdb->prepare(
                 "
                     SELECT receipt.id AS id, CustomerName, PrimaryEmailAddress, receipt.Object as Object
@@ -513,7 +515,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 if (!current_user_can('manage_options')) {
                     wp_die(__('You do not have sufficient permissions to access this page.'));
                 }
-                check_admin_referer( 'download-receipt_'.$_GET['pdf_receipt'] );
+                check_admin_referer('download-receipt_' . $_GET['pdf_receipt']);
 
                 $receipt = $this->getReceipt($_GET['pdf_receipt']);
                 $receipt_ob = unserialize($receipt->Object);
@@ -525,25 +527,27 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 } else {
 
                     $mpdf = new mPDF();
-                    $mpdf->WriteHTML( $receipt_html->get_html() );
-                    $mpdf->Output( 'Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D' );
+                    $mpdf->WriteHTML($receipt_html->get_html());
+                    $mpdf->Output('Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D');
                 }
                 die();
             }
 
         }
 
-        function send_receipt_email_hook() {
-            check_admin_referer( 'send-receipt-email_'.$_GET['send_email'] );
+        function send_receipt_email_hook()
+        {
+            check_admin_referer('send-receipt-email_' . $_GET['send_email']);
             $this->sendReceiptEmail($_GET['send_email']);
-            wp_redirect(admin_url( "options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
             exit();
         }
 
-        function mark_receipt_manual_hook() {
-            check_admin_referer( 'send-receipt-manual_'.$_GET['mark_sent'] );
+        function mark_receipt_manual_hook()
+        {
+            check_admin_referer('send-receipt-manual_' . $_GET['mark_sent']);
             $this->markReceiptManuallySent($_GET['mark_sent']);
-            wp_redirect(admin_url( "options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
             exit();
         }
 
@@ -553,10 +557,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
             }
 
-            $current_url = admin_url( "options-general.php?page=".$_GET["page"] );
+            $current_url = admin_url("options-general.php?page=" . $_GET["page"]);
 
             if (!empty($_GET['sync'])) {
-                check_admin_referer( 'sync-receipts' );
+                check_admin_referer('sync-receipts');
                 $this->syncSalesReceipts();
                 $this->syncCustomers();
             }
@@ -568,7 +572,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
                     "
             );
-
 
 
             ?>
@@ -590,13 +593,13 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                 foreach ($receipts as $receipt) {
                     $receipt_ob = unserialize($receipt->Object);
-                    if (! $receipt->PrimaryEmailAddress) {
+                    if (!$receipt->PrimaryEmailAddress) {
                         $customer_email = '';
-                        $send_receipt = '<a href="'. wp_nonce_url(admin_url('admin-post.php') . '?action=mark_receipt_manual&mark_sent=' . $receipt->id, 'send-receipt-manual_'.$receipt->id) .'">Mark as manually sent</a>';
+                        $send_receipt = '<a href="' . wp_nonce_url(admin_url('admin-post.php') . '?action=mark_receipt_manual&mark_sent=' . $receipt->id, 'send-receipt-manual_' . $receipt->id) . '">Mark as manually sent</a>';
                     } else {
                         $email_address = esc_attr__($receipt->PrimaryEmailAddress, 'wp_admin_style');;
                         $customer_email = "<a title='{$email_address}'><span  style='font-size: smaller' class='dashicons dashicons-email'></span></a>";
-                        $send_receipt = '<a href="'. wp_nonce_url(admin_url('admin-post.php') . '?action=send_receipt_email&send_email=' . $receipt->id, 'send-receipt-email_'.$receipt->id) .'">Send Email Receipt</a>';
+                        $send_receipt = '<a href="' . wp_nonce_url(admin_url('admin-post.php') . '?action=send_receipt_email&send_email=' . $receipt->id, 'send-receipt-email_' . $receipt->id) . '">Send Email Receipt</a>';
                     }
                     ?>
                     <tr valign="top">
@@ -617,7 +620,10 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                             ?></td>
                         <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?></td>
-                        <td><a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_'. $receipt->id) ?>">Download PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a></td>
+                        <td>
+                            <a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_' . $receipt->id) ?>">Download
+                                PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a>
+                        </td>
                         <td><?= $send_receipt ?></td>
                     </tr>
                     <?php
@@ -627,7 +633,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 </tbody>
             </table>
 
-            <a href="<?= wp_nonce_url($current_url . '&sync='.time(), 'sync-receipts') ?>">Force sync from Quickbooks</a>
+            <a href="<?= wp_nonce_url($current_url . '&sync=' . time(), 'sync-receipts') ?>">Force sync from
+                Quickbooks</a>
             <?php
         }
 
@@ -681,13 +688,13 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
             if ($this->startsWith($status, 'EMAIL ')) {
                 $unixtimestamp = substr($status, 6);
-                $unixtimestamp += 3600*10; // Hard code UTC offset for Brisbane for now, less code
+                $unixtimestamp += 3600 * 10; // Hard code UTC offset for Brisbane for now, less code
                 $timestamp = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $unixtimestamp, false);
                 return "Sent Email $timestamp";
             }
             if ($this->startsWith($status, 'MANUAL ')) {
                 $unixtimestamp = substr($status, 7);
-                $unixtimestamp += 3600*10; // Hard code UTC offset for Brisbane for now, less code
+                $unixtimestamp += 3600 * 10; // Hard code UTC offset for Brisbane for now, less code
                 $timestamp = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $unixtimestamp, false);
                 return "Sent Manual $timestamp";
             }
@@ -695,10 +702,12 @@ if (!class_exists('RefugeeConnect_receipts')) {
         }
 
         // https://stackoverflow.com/a/10473026
-        private function startsWith($haystack, $needle) {
+        private function startsWith($haystack, $needle)
+        {
             // search backwards starting from haystack length characters from the end
             return $needle === "" || strrpos($haystack, $needle, -strlen($haystack)) !== false;
         }
+
         private function externalReceiptStatus($receipt)
         {
             foreach ($receipt->CustomField as $custom_field) {
@@ -744,7 +753,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
         }
 
-        private function updateReceiptRow($receipt) {
+        private function updateReceiptRow($receipt)
+        {
             return $this->wpdb->replace(
                 $this->receipt_table_name,
                 [
@@ -796,7 +806,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
          * @param $status string Status to update in QuickBooks
          * @return bool
          */
-        private function updateExternalStatus($receiptID, $status) {
+        private function updateExternalStatus($receiptID, $status)
+        {
             $receipt = $this->getReceipt($receiptID);
             $receipt_ob = unserialize($receipt->Object);
             $this->updateCustomField($receipt_ob, $status);
@@ -815,7 +826,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 ->body(json_encode($update_ob))
                 ->send();
 
-            if($response->body->SalesReceipt) {
+            if ($response->body->SalesReceipt) {
                 $this->updateReceiptRow($response->body->SalesReceipt);
                 ?>
                 <div class="notice notice-success is-dismissible">
@@ -824,9 +835,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 <?php
                 return true;
             } elseif ($response->body->Fault->Error) {
-                foreach($response->body->Fault->Error as $error) {
+                foreach ($response->body->Fault->Error as $error) {
                     $this->error(
-                            "Unable to update QuickBooks Receipt #{$receipt_ob->DocNumber} - 
+                        "Unable to update QuickBooks Receipt #{$receipt_ob->DocNumber} - 
                              {$error->Detail}<br/>
                              Try forcing sync of receipt's before retrying");
                 }
@@ -839,7 +850,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $receipt = $this->getReceipt($receiptID);
 
             $receipt_ob = unserialize($receipt->Object);
-            if (!$this->updateExternalStatus($receiptID, "MANUAL ".time())) {
+            if (!$this->updateExternalStatus($receiptID, "MANUAL " . time())) {
                 return $this->error(
                     "Unable to mark receipt #{$receipt_ob->DocNumber} as sent to {$receipt->CustomerName} due to issue
                      updating Quickbooks Status");
@@ -849,7 +860,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
         }
 
 
-        public function sendReceiptEmail($receiptID) {
+        public function sendReceiptEmail($receiptID)
+        {
             $receipt = $this->getReceipt($receiptID);
 
             $receipt_ob = unserialize($receipt->Object);
@@ -868,9 +880,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
                          email address", 'error');
             }
 
-            if (!$this->updateExternalStatus($receiptID, "EMAIL ".time())) {
+            if (!$this->updateExternalStatus($receiptID, "EMAIL " . time())) {
                 return $this->addNotice(
-                        "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to issue updating 
+                    "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to issue updating 
                         Quickbooks Status", 'error');
             }
 
@@ -880,40 +892,42 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $attachment = '/tmp/Donation_Receipt_' . $receipt_ob->Id . '.pdf';
 
             $mpdf = new mPDF();
-            $mpdf->WriteHTML( $receipt_html->get_html() );
-            $mpdf->Output($attachment , 'F' );
+            $mpdf->WriteHTML($receipt_html->get_html());
+            $mpdf->Output($attachment, 'F');
 
-            add_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
+            add_filter('wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type']);
 
             $to = $customer_email;
             $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->Id;
             $body = $receipt_html->get_html();
 
             $headers[] = "From: {$this->get_rc_option('email_from_name')} <{$this->get_rc_option('email_from_address')}>";
-            if ( $this->get_rc_option( 'email_replyto_address' ) ) {
+            if ($this->get_rc_option('email_replyto_address')) {
                 $headers[] = "Reply-To: {$this->get_rc_option('email_replyto_name')} <{$this->get_rc_option('email_replyto_address')}>";
             }
-            if ( $this->get_rc_option( 'email_bcc' ) ) {
+            if ($this->get_rc_option('email_bcc')) {
                 $headers[] = "Bcc: <{$this->get_rc_option('email_bcc')}>";
             }
 
-            wp_mail( $to, $subject, $body, $headers, $attachment );
+            wp_mail($to, $subject, $body, $headers, $attachment);
 
             // Reset content-type to avoid conflicts -- https://core.trac.wordpress.org/ticket/23578
-            remove_filter( 'wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type'] );
+            remove_filter('wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type']);
 
             $this->addNotice("Sent Receipt #{$receipt_ob->DocNumber} to $customer_email", 'success');
         }
 
-        public function wpdocs_set_html_mail_content_type() {
+        public function wpdocs_set_html_mail_content_type()
+        {
             return 'text/html';
         }
 
-        public function admin_notices() {
+        public function admin_notices()
+        {
             /* Check transient, if available display notice */
-            $notices = get_transient( 'rc-receipt-admin-notices' );
-            if( $notices ){
-                foreach($notices as $notice) {
+            $notices = get_transient('rc-receipt-admin-notices');
+            if ($notices) {
+                foreach ($notices as $notice) {
                     ?>
                     <div class="notice notice-<?= $notice->type ?> is-dismissible">
                         <p><?= $notice->message ?></p>
@@ -921,7 +935,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     <?php
                 }
                 /* Delete transient, only display this notice once. */
-                delete_transient( 'rc-receipt-admin-notices' );
+                delete_transient('rc-receipt-admin-notices');
             }
         }
 
@@ -936,7 +950,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             set_transient('rc-receipt-admin-notices', $notices);
         }
 
-        private function error($message) {
+        private function error($message)
+        {
             ?>
             <div class="notice notice-error is-dismissible">
                 <p><?= $message ?></p>
@@ -945,7 +960,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
             return false;
         }
 
-        private function success($message) {
+        private function success($message)
+        {
             ?>
             <div class="notice notice-success is-dismissible">
                 <p><?= $message ?></p>
