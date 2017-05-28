@@ -602,7 +602,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             foreach($results as $receipt) {
                 $this->sendReceiptEmail($receipt);
             }
-            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
             exit();
         }
 
@@ -610,7 +610,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
             check_admin_referer('send-receipt-email_' . $_GET['send_email']);
             $this->sendReceiptEmail($this->getReceipt($_GET['send_email']));
-            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
             exit();
         }
 
@@ -618,7 +618,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
         {
             check_admin_referer('send-receipt-manual_' . $_GET['mark_sent']);
             $this->markReceiptManuallySent($_GET['mark_sent']);
-            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
             exit();
         }
 
@@ -627,7 +627,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             check_admin_referer('sync-receipts');
             $this->syncSalesReceipts();
             $this->syncCustomers();
-            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
             exit();
         }
 
@@ -637,7 +637,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
             }
 
-            $current_url = admin_url("options-general.php?page=" . $_GET["page"]);
+            $current_url = admin_url("admin.php?page=" . $_GET["page"]);
 
             $receipts = $this->wpdb->get_results(
                 "
@@ -696,7 +696,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                         <td><?= $this->externalStatusFancy($receipt->ExternalReceipt) ?></td>
                         <td>
                             <a href="<?= wp_nonce_url($current_url . '&pdf_receipt=' . $receipt->id, 'download-receipt_' . $receipt->id) ?>">Download
-                                PDF</a> | <a href="<?= $current_url . '&preview=1&pdf_receipt=' . $receipt->id ?>">Preview</a>
+                                PDF</a> | <a href="<?= wp_nonce_url($current_url . '&preview=1&pdf_receipt=' . $receipt->id, 'download-receipt_' . $receipt->id) ?>">Preview</a>
                         </td>
                         <td><?= $send_receipt ?></td>
                     </tr>
@@ -809,14 +809,14 @@ if (!class_exists('RefugeeConnect_receipts')) {
         private function checkResponseError($response) {
             if($response->body->Fault) {
                 $this->addNotice("Unexpected response from Intuit. {$response->body->Fault->Error->Message}", 'error');
-                wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+                wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
                 exit();
             }
             // We always expect JSON back, if we've gotten XML something is wrong
             if($response->content_type != 'application/json'){
                 $raw_body = htmlentities($response->raw_body);
                 $this->addNotice("Unexpected response from Intuit. Expecting JSON, got {$response->content_type}<pre>{$raw_body}</pre>", 'error');
-                wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+                wp_redirect(admin_url("admin.php?page=refugee-connect-receipts"));
                 exit();
             }
         }
@@ -952,7 +952,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             if (!$this->get_rc_option('email_from_address')) {
                 return $this->addNotice(
                     "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to missing From 
-                        Address in <a href='" . admin_url("options-general.php?page=refugee-connect-receipts-admin")
+                        Address in <a href='" . admin_url("admin.php?page=refugee-connect-receipts-admin")
                     . "'>Settings</a>", 'error');
             }
 
