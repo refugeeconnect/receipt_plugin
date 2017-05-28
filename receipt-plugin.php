@@ -577,7 +577,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
                     $mpdf = new mPDF();
                     $mpdf->WriteHTML($receipt_html->get_html());
-                    $mpdf->Output('Donation_Receipt_' . $receipt_ob->Id . '.pdf', 'D');
+                    $mpdf->Output('Donation_Receipt_' . $receipt_ob->DocNumber . '.pdf', 'D');
                 }
                 die();
             }
