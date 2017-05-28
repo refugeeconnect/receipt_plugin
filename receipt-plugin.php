@@ -366,36 +366,39 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         function plugin_menu()
         {
+            add_menu_page(
+                'Donation Receipts',
+                'Donation Receipts',
+                'manage_options',
+                'refugee-connect-receipts',
+                [$this, 'receipt_page'],
+                'dashicons-portfolio',
+                59 );
 
-            add_options_page(
-                'Receipt Options',
-                'Refugee Connect receipts Settings',
+            add_submenu_page(
+                'refugee-connect-receipts',
+                'Refugee Connect Customers',
+                'Customers',
+                'manage_options',
+                'refugee-connect-customers',
+                [$this, 'customers_page']
+            );
+
+            add_submenu_page(
+                'refugee-connect-receipts',
+                'Settings',
+                'Settings',
                 'manage_options',
                 'refugee-connect-receipts-admin',
                 [$this, 'plugin_options']
             );
-            add_options_page(
-                'Receipt Options',
-                'Refugee Connect receipts Connect Intuit',
+            add_submenu_page(
+                'refugee-connect-receipts',
+                'Intuit/Quickbooks Connection',
+                'Connect to Quickbooks',
                 'manage_options',
                 'refugee-connect-connect-intunit',
                 [$this, 'connect_intuit']
-            );
-
-            add_options_page(
-                'Receipt Options',
-                'Refugee Connect Receipts',
-                'manage_options',
-                'refugee-connect-receipts',
-                [$this, 'receipt_page']
-            );
-
-            add_options_page(
-                'Receipt Options',
-                'Refugee Connect Customers',
-                'manage_options',
-                'refugee-connect-customers',
-                [$this, 'customers_page']
             );
         }
 
