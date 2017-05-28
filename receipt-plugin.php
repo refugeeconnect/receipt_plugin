@@ -56,8 +56,9 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             // Setup template for Requests
             $template = \Httpful\Request::init()
-                ->expectsJson();
+                ->addHeaders(['Accept' => 'application/xml; q=0.5, text/xml; q=0.5, application/json']);
             \Httpful\Request::ini($template);
+            \Httpful\Httpful::register('text/xml', new \Httpful\Handlers\XmlHandler());
 
             $this->wpdb = $wpdb;
         }
@@ -71,6 +72,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         public function cron_exec()
         {
+            $this->check_intuit_refresh();
             $this->setupOAuth();
             $this->syncSalesReceipts();
             $this->syncCustomers();
@@ -397,11 +399,51 @@ if (!class_exists('RefugeeConnect_receipts')) {
             );
         }
 
+        function check_intuit_refresh()
+        {
+            // If our token is more than 151 days old, we can try to renew it
+            if(get_option('refugeeconnect_receipt_authed_timestamp') < time() - 3600*24*151) {
+                return false;
+            }
+
+            $uri = 'https://appcenter.intuit.com/api/v1/connection/reconnect';
+            $response = \Httpful\Request::get($uri)
+                ->addHeaders($this->getAuthHeader('GET', $uri))
+                ->expectsXml()
+                ->send();
+            $tokenCredentials = $this->createTokenCredentials($response->body);
+
+            if($tokenCredentials) {
+                update_option('refugeeconnect_receipt_authed_creds', $tokenCredentials);
+                update_option('refugeeconnect_receipt_authed_timestamp', time());
+                $this->addNotice("Successfully refreshed Intuit Oauth token", 'success');
+            }
+        }
+
+        // Based on https://github.com/thephpleague/oauth1-client/blob/master/src/Client/Server/Server.php#L474
+        protected function createTokenCredentials($data)
+        {
+            if ($data->ErrorMessage) {
+                $this->addNotice("Error [{$data->ErrorCode}] in retrieving token credentials for refresh: {$data->ErrorMessage}", 'error');
+                return false;
+            }
+
+            $tokenCredentials = new \League\OAuth1\Client\Credentials\TokenCredentials();
+            $tokenCredentials->setIdentifier($data->OAuthToken);
+            $tokenCredentials->setSecret($data->OAuthTokenSecret);
+
+            return $tokenCredentials;
+        }
+
         function connect_intuit()
         {
             //TODO record timestamp of oauth token as it expires in 180 days, and ensure we do a reconnection attempt when required
             if (!current_user_can('manage_options')) {
                 wp_die(__('You do not have sufficient permissions to access this page.'));
+            }
+
+            if (isset($_GET['refresh'])) {
+                $this->check_intuit_refresh();
             }
 
             if (isset($_GET['oauth_token']) && isset($_GET['oauth_verifier'])) {
@@ -421,6 +463,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                         'refugeeconnect_receipt_authed_realm',
                         filter_var($_GET['realmId'], FILTER_SANITIZE_NUMBER_INT)
                     );
+                    update_option('refugeeconnect_receipt_authed_timestamp', time());
 
                     ?>
                     <div class="notice notice-success is-dismissible">
@@ -464,6 +507,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                     <?= serialize($tokenCredentials) ?><br/>
                     <?= serialize($user) ?><br/>
                     <?= $email ?><br/>
+                    <?= get_option('refugeeconnect_receipt_authed_timestamp', 'No Timestamp') ?>
                 </div>
                 <?php
             }
@@ -759,6 +803,21 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
         }
 
+        private function checkResponseError($response) {
+            if($response->body->Fault) {
+                $this->addNotice("Unexpected response from Intuit. {$response->body->Fault->Error->Message}", 'error');
+                wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+                exit();
+            }
+            // We always expect JSON back, if we've gotten XML something is wrong
+            if($response->content_type != 'application/json'){
+                $raw_body = htmlentities($response->raw_body);
+                $this->addNotice("Unexpected response from Intuit. Expecting JSON, got {$response->content_type}<pre>{$raw_body}</pre>", 'error');
+                wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+                exit();
+            }
+        }
+
         function syncSalesReceipts()
         {
             $uri = $this->baseUrl . 'query?query=SELECT%20%2A%20from%20salesreceipt&minorversion=4';
@@ -768,6 +827,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             // TODO pagination to ensure we get all receipts
             $count = 0;
+            $this->checkResponseError($response);
             foreach ($response->body->QueryResponse->SalesReceipt as $receipt) {
                 $this->updateReceiptRow($receipt);
                 $count++;
@@ -803,6 +863,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             // TODO pagination to ensure we get all customers
             $count = 0;
+            $this->checkResponseError($response);
             foreach ($response->body->QueryResponse->Customer as $customer) {
                 $this->wpdb->replace(
                     $this->customer_table_name,
