@@ -971,7 +971,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             $receipt_html = new RefugeeConnect_receipt_template($receipt_ob, $customer_email);
 
-            $attachment = '/tmp/Donation_Receipt_' . $receipt_ob->Id . '.pdf';
+            $attachment = '/tmp/Donation_Receipt_' . $receipt_ob->DocNumber . '.pdf';
 
             $mpdf = new mPDF();
             $mpdf->WriteHTML($receipt_html->get_html());
@@ -980,7 +980,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             add_filter('wp_mail_content_type', [$this, 'wpdocs_set_html_mail_content_type']);
 
             $to = $customer_email;
-            $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->Id;
+            $subject = 'Refugee Connect Donation Receipt #' . $receipt_ob->DocNumber;
             $body = $receipt_html->get_html();
 
             $headers[] = "From: {$this->get_rc_option('email_from_name')} <{$this->get_rc_option('email_from_address')}>";
