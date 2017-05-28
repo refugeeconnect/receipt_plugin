@@ -51,6 +51,8 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             add_action('admin_post_send_receipt_email', [$this, 'send_receipt_email_hook']);
             add_action('admin_post_mark_receipt_manual', [$this, 'mark_receipt_manual_hook']);
+            add_action('admin_post_send_all_unsent_email', [$this, 'send_all_unsent_email_hook']);
+            add_action('admin_post_sync_intuit', [$this, 'sync_external_hook']);
 
             // Setup template for Requests
             $template = \Httpful\Request::init()
@@ -535,10 +537,32 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
         }
 
+        function send_all_unsent_email_hook()
+        {
+            check_admin_referer('send-receipt-email-all');
+            $sql = $this->wpdb->prepare(
+                "
+                    SELECT receipt.id AS id, CustomerName, PrimaryEmailAddress, receipt.Object as Object
+                    FROM {$this->receipt_table_name} AS receipt
+                    INNER JOIN {$this->customer_table_name} ON receipt.CustomerID={$this->customer_table_name}.id
+                    WHERE ExternalReceipt = 'Not Sent'
+                    "
+            );
+            $results = $this->wpdb->get_results($sql);
+            if(sizeof($results) == 0) {
+                $this->addNotice("All Receipts that can be sent are already marked as sent", 'warning');
+            }
+            foreach($results as $receipt) {
+                $this->sendReceiptEmail($receipt);
+            }
+            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            exit();
+        }
+
         function send_receipt_email_hook()
         {
             check_admin_referer('send-receipt-email_' . $_GET['send_email']);
-            $this->sendReceiptEmail($_GET['send_email']);
+            $this->sendReceiptEmail($this->getReceipt($_GET['send_email']));
             wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
             exit();
         }
@@ -551,6 +575,15 @@ if (!class_exists('RefugeeConnect_receipts')) {
             exit();
         }
 
+        function sync_external_hook()
+        {
+            check_admin_referer('sync-receipts');
+            $this->syncSalesReceipts();
+            $this->syncCustomers();
+            wp_redirect(admin_url("options-general.php?page=refugee-connect-receipts"));
+            exit();
+        }
+
         function receipt_page()
         {
             if (!current_user_can('manage_options')) {
@@ -558,12 +591,6 @@ if (!class_exists('RefugeeConnect_receipts')) {
             }
 
             $current_url = admin_url("options-general.php?page=" . $_GET["page"]);
-
-            if (!empty($_GET['sync'])) {
-                check_admin_referer('sync-receipts');
-                $this->syncSalesReceipts();
-                $this->syncCustomers();
-            }
 
             $receipts = $this->wpdb->get_results(
                 "
@@ -633,8 +660,11 @@ if (!class_exists('RefugeeConnect_receipts')) {
                 </tbody>
             </table>
 
-            <a href="<?= wp_nonce_url($current_url . '&sync=' . time(), 'sync-receipts') ?>">Force sync from
+            <a href="<?= wp_nonce_url(admin_url('admin-post.php') . '?action=send_all_unsent_email', 'send-receipt-email-all') ?>">Send all pending receipts</a> |
+
+            <a href="<?= wp_nonce_url(admin_url('admin-post.php') . '?action=sync_intuit', 'sync-receipts') ?>">Force sync from
                 Quickbooks</a>
+
             <?php
         }
 
@@ -745,11 +775,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             if (!defined('DOING_CRON')) {
                 // Don't output notice if we are running under Cron
-                ?>
-                <div class="notice notice-success is-dismissible">
-                    <p>Syncronised <?= $count ?> receipts</p>
-                </div>
-                <?php
+                $this->addNotice("Syncronised $count receipts with Intuit", 'success');
             }
         }
 
@@ -792,23 +818,18 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             if (!defined('DOING_CRON')) {
                 // Don't output notice if we are running under Cron
-                ?>
-                <div class="notice notice-success is-dismissible">
-                    <p>Syncronised <?= $count ?> customers</p>
-                </div>
-                <?php
+                $this->addNotice("Syncronised $count customers with Intuit", 'success');
             }
         }
 
         /**
          * Updates QuickBooks ExternalReceipt status field
-         * @param $receiptID int
+         * @param $receipt object
          * @param $status string Status to update in QuickBooks
          * @return bool
          */
-        private function updateExternalStatus($receiptID, $status)
+        private function updateExternalStatus($receipt, $status)
         {
-            $receipt = $this->getReceipt($receiptID);
             $receipt_ob = unserialize($receipt->Object);
             $this->updateCustomField($receipt_ob, $status);
 
@@ -828,11 +849,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
 
             if ($response->body->SalesReceipt) {
                 $this->updateReceiptRow($response->body->SalesReceipt);
-                ?>
-                <div class="notice notice-success is-dismissible">
-                    <p>Synced status of Receipt #<?= $receipt_ob->DocNumber ?> to QuickBooks</p>
-                </div>
-                <?php
+                $this->addNotice("Synced status of Receipt #{$receipt_ob->DocNumber} to Quickbooks", 'success');
                 return true;
             } elseif ($response->body->Fault->Error) {
                 foreach ($response->body->Fault->Error as $error) {
@@ -850,7 +867,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
             $receipt = $this->getReceipt($receiptID);
 
             $receipt_ob = unserialize($receipt->Object);
-            if (!$this->updateExternalStatus($receiptID, "MANUAL " . time())) {
+            if (!$this->updateExternalStatus($receipt, "MANUAL " . time())) {
                 return $this->addNotice(
                     "Unable to mark receipt #{$receipt_ob->DocNumber} as sent to {$receipt->CustomerName} due to issue
                      updating Quickbooks Status", 'error');
@@ -860,10 +877,11 @@ if (!class_exists('RefugeeConnect_receipts')) {
         }
 
 
-        public function sendReceiptEmail($receiptID)
+        /**
+         * @param $receipt Object
+         */
+        public function sendReceiptEmail($receipt)
         {
-            $receipt = $this->getReceipt($receiptID);
-
             $receipt_ob = unserialize($receipt->Object);
             $customer_email = $receipt->PrimaryEmailAddress;
 
@@ -880,7 +898,7 @@ if (!class_exists('RefugeeConnect_receipts')) {
                          email address", 'error');
             }
 
-            if (!$this->updateExternalStatus($receiptID, "EMAIL " . time())) {
+            if (!$this->updateExternalStatus($receipt, "EMAIL " . time())) {
                 return $this->addNotice(
                     "Unable to send receipt #{$receipt_ob->DocNumber} to {$receipt->CustomerName} due to issue updating 
                         Quickbooks Status", 'error');
